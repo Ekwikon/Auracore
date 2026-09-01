@@ -26,13 +26,14 @@
         .state-indicator { margin-top: 15px; font-weight: 600; font-size: 18px; }
         .on { color: #22c55e; }
         .off { color: #ef4444; }
+        .auto { color: #3b82f6; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <h2>AI Voice Control</h2>
-    <p>กดปุ่มแล้วพูดคำสั่ง (เช่น "เปิดไฟหน่อย", "ปิดไฟ")</p>
+    <p>พูดคำสั่ง (เช่น "เปิดไฟ", "ปิดไฟ", "เปิดโหมดออโต้")</p>
 
     <button id="micBtn" class="btn-mic" onclick="toggleListening()">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -53,25 +54,17 @@
     const transcriptText = document.getElementById('transcriptText');
     const deviceStatus = document.getElementById('deviceStatus');
 
-    // Blynk Token และ Virtual Pin V0 ตรงตามโค้ด ESP32 หลัก
     const BLYNK_TOKEN = "9ksShhZRwGtCGBPw-R0ioSRWy3cwE-L7";
-    const VIRTUAL_PIN = "v0"; 
 
     let recognition;
     let isListening = false;
 
-    // =======================================================
-    // 🔊 ฟังก์ชันสั่งให้ระบบพูดตอบรับภาษาไทย (Text-to-Speech)
-    // =======================================================
     function speakText(text) {
         if ('speechSynthesis' in window) {
-            // ยกเลิกเสียงพูดเก่าที่อาจจะค้างอยู่
             window.speechSynthesis.cancel();
-
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'th-TH'; // กำหนดให้พูดภาษาไทย
-            utterance.rate = 1.0;     // ความเร็วเสียงปกติ
-
+            utterance.lang = 'th-TH';
+            utterance.rate = 1.0;
             window.speechSynthesis.speak(utterance);
         }
     }
@@ -117,40 +110,51 @@
 
     function processVoiceCommand(text) {
         const lowerText = text.toLowerCase();
-        const turnOnKeywords = ["เปิด", "เปิดไฟ", "สว่าง", "ติดไฟ", "on"];
-        const turnOffKeywords = ["ปิด", "ปิดไฟ", "มืด", "ดับไฟ", "off"];
+        
+        // คีย์เวิร์ดคำสั่งต่างๆ
+        const turnOnKeywords  = ["เปิดไฟ", "เปิด", "สว่าง", "ติดไฟ", "on"];
+        const turnOffKeywords = ["ปิดไฟ", "ปิด", "มืด", "ดับไฟ", "off"];
+        const autoKeywords    = ["ออโต้", "อัตโนมัติ", " auto", "เซนเซอร์", "เซ็นเซอร์"];
 
         let action = null;
 
-        if (turnOnKeywords.some(keyword => lowerText.includes(keyword))) {
+        if (autoKeywords.some(keyword => lowerText.includes(keyword))) {
+            action = "AUTO";
+        } else if (turnOnKeywords.some(keyword => lowerText.includes(keyword))) {
             action = "ON";
         } else if (turnOffKeywords.some(keyword => lowerText.includes(keyword))) {
             action = "OFF";
         }
 
         if (action === "ON") {
-            deviceStatus.innerText = "ON";
+            deviceStatus.innerText = "ON (MANUAL)";
             deviceStatus.className = "on";
-            sendDataToBlynk(1);
-            speakText("เปิดไฟแล้วครับ"); // AI พูดตอบรับตอนเปิด
+            sendDataToBlynk("v0", 1); // สั่งเปิดไฟ (V0=1)
+            speakText("เปิดไฟแล้วครับ");
         } else if (action === "OFF") {
-            deviceStatus.innerText = "OFF";
+            deviceStatus.innerText = "OFF (MANUAL)";
             deviceStatus.className = "off";
-            sendDataToBlynk(0);
-            speakText("ปิดไฟแล้วครับ"); // AI พูดตอบรับตอนปิด
+            sendDataToBlynk("v0", 0); // สั่งปิดไฟ (V0=0)
+            speakText("ปิดไฟแล้วครับ");
+        } else if (action === "AUTO") {
+            deviceStatus.innerText = "AUTO MODE";
+            deviceStatus.className = "auto";
+            sendDataToBlynk("v1", 0); // ยกเลิก Manual กลับไปใช้เซนเซอร์ (V1=0)
+            speakText("เปลี่ยนเป็นโหมดอัตโนมัติแล้วครับ");
         } else {
             transcriptText.innerText += " (ไม่เข้าใจคำสั่ง กรุณาลองใหม่)";
             speakText("ไม่เข้าใจคำสั่งครับ กรุณาลองใหม่อีกครั้ง");
         }
     }
 
-    function sendDataToBlynk(value) {
-        const url = `https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&${VIRTUAL_PIN}=${value}`;
+    // ปรับฟังก์ชันส่งข้อมูล ให้รับค่า Pin ได้ยืดหยุ่น (ทั้ง v0 และ v1)
+    function sendDataToBlynk(pin, value) {
+        const url = `https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&${pin}=${value}`;
 
         fetch(url)
             .then(response => {
                 if (response.ok) {
-                    console.log(`ส่งคำสั่ง ${value} ไปยัง Blynk (V0) สำเร็จ`);
+                    console.log(`ส่งคำสั่ง ${value} ไปยัง Blynk (${pin}) สำเร็จ`);
                 }
             })
             .catch(error => console.error("Error:", error));
