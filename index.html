@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ESP32 AI Voice Controller</title>
 
+    <!-- ดึงฟอนต์ Prompt จาก Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
@@ -14,15 +15,8 @@
         body { background: #0f172a; color: #f8fafc; text-align: center; padding: 20px; margin: 0; }
         h2 { font-weight: 600; margin-bottom: 5px; }
         p, .status-box { font-weight: 300; }
-        .card { background: #1e293b; max-width: 400px; margin: 20px auto; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .card { background: #1e293b; max-width: 400px; margin: 30px auto; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
         
-        /* สไตล์ช่องกรอก IP Address สำหรับ Vercel */
-        .ip-config { margin-bottom: 15px; text-align: left; }
-        .ip-config label { font-size: 12px; color: #94a3b8; display: block; margin-bottom: 4px; }
-        .ip-input-group { display: flex; gap: 8px; }
-        .ip-input-group input { flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #f8fafc; font-size: 14px; outline: none; }
-        .ip-input-group button { padding: 8px 15px; border-radius: 8px; border: none; background: #3b82f6; color: white; cursor: pointer; font-size: 14px; }
-
         /* สไตล์ปุ่มไมค์และไอคอน SVG */
         .btn-mic { 
             width: 100px; 
@@ -39,7 +33,11 @@
             justify-content: center;
             margin-top: 15px;
         }
-        .btn-mic svg { width: 45px; height: 45px; fill: currentColor; }
+        .btn-mic svg {
+            width: 45px;
+            height: 45px;
+            fill: currentColor;
+        }
         .btn-mic.listening { 
             background: #ef4444; 
             box-shadow: 0 0 20px rgba(239, 68, 68, 0.7);
@@ -57,15 +55,6 @@
 <body>
 
 <div class="card">
-    <!-- ช่องตั้งค่า IP ของ ESP32 เมื่อรันผ่าน Vercel -->
-    <div class="ip-config">
-        <label for="espIp">IP Address ของ ESP32 ในบ้าน:</label>
-        <div class="ip-input-group">
-            <input type="text" id="espIp" placeholder="เช่น 192.168.1.50">
-            <button onclick="saveIP()">บันทึก</button>
-        </div>
-    </div>
-
     <h2>AI Voice Control</h2>
     <p>กดปุ่มแล้วพูดคำสั่ง (เช่น "เปิดไฟหน่อย", "ปิดไฟ")</p>
 
@@ -87,25 +76,10 @@
     const micBtn = document.getElementById('micBtn');
     const transcriptText = document.getElementById('transcriptText');
     const deviceStatus = document.getElementById('deviceStatus');
-    const espIpInput = document.getElementById('espIp');
 
-    // โหลด IP ที่เคยบันทึกไว้ใน LocalStorage
-    document.addEventListener("DOMContentLoaded", () => {
-        const savedIp = localStorage.getItem('esp32_ip');
-        if (savedIp) {
-            espIpInput.value = savedIp;
-        }
-    });
-
-    function saveIP() {
-        const ip = espIpInput.value.trim();
-        if (ip) {
-            localStorage.setItem('esp32_ip', ip);
-            alert("บันทึก IP Address เรียบร้อยแล้ว!");
-        } else {
-            alert("กรุณากรอก IP Address ของ ESP32");
-        }
-    }
+    // Blynk Auth Token ของระบบ
+    const BLYNK_TOKEN = "9ksShhZRwGtCGBPw-R0ioSRWy3cwE-L7";
+    const VIRTUAL_PIN = "v1"; // กำหนดให้ควบคุมผ่าน Virtual Pin V1
 
     let recognition;
     let isListening = false;
@@ -126,7 +100,6 @@
 
         recognition.onresult = (event) => {
             const commandText = event.results[0][0].transcript;
-            // แก้ไข Syntax Error: เติม Backtick (`)
             transcriptText.innerText = `คุณพูดว่า: "${commandText}"`;
             
             // ส่งคำสั่งไปประมวลผล AI Logic
@@ -165,7 +138,9 @@
     function processVoiceCommand(text) {
         const lowerText = text.toLowerCase();
 
+        // คำคีย์เวิร์ดสำหรับสั่ง "เปิด"
         const turnOnKeywords = ["เปิด", "เปิดไฟ", "สว่าง", "ติดไฟ", "on"];
+        // คำคีย์เวิร์ดสำหรับสั่ง "ปิด"
         const turnOffKeywords = ["ปิด", "ปิดไฟ", "มืด", "ดับไฟ", "off"];
 
         let action = null;
@@ -179,33 +154,32 @@
         if (action === "ON") {
             deviceStatus.innerText = "ON";
             deviceStatus.className = "on";
-            sendDataToESP32("ON");
+            sendDataToBlynk(1); // ส่งค่า 1 ไปเปิดไฟ
         } else if (action === "OFF") {
             deviceStatus.innerText = "OFF";
             deviceStatus.className = "off";
-            sendDataToESP32("OFF");
+            sendDataToBlynk(0); // ส่งค่า 0 ไปปิดไฟ
         } else {
             transcriptText.innerText += " (ไม่เข้าใจคำสั่ง กรุณาลองใหม่)";
         }
     }
 
     // =======================================================
-    // 🔗 [จุดเชื่อมต่อกับระบบ ESP32 ผ่าน Vercel]
+    // 🔗 [จุดเชื่อมต่อยิงคำสั่งไป Blynk Cloud API]
     // =======================================================
-    function sendDataToESP32(cmd) {
-        const ip = localStorage.getItem('esp32_ip') || espIpInput.value.trim();
-        
-        // ถ้าไม่ได้กรอก IP ให้ยิง Path ตรงกรณีรันบนบอร์ดโดยตรง
-        const targetUrl = ip ? `http://${ip}/control?relay=${cmd}` : `/control?relay=${cmd}`;
+    function sendDataToBlynk(value) {
+        const url = `https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&${VIRTUAL_PIN}=${value}`;
 
-        // ยิง HTTP GET Request ไปยัง ESP32
-        fetch(targetUrl, { mode: 'no-cors' })
-            .then(() => {
-                // แก้ไข Syntax Error: เติม Backtick (`)
-                console.log(`ส่งคำสั่ง ${cmd} ไปยัง ESP32 สำเร็จ`);
+        fetch(url)
+            .then(response => {
+                if (response.ok) {
+                    console.log(`ส่งคำสั่งค่า ${value} ไปยัง Blynk สำเร็จ`);
+                } else {
+                    console.error("การส่งคำสั่งไป Blynk ล้มเหลว");
+                }
             })
             .catch(error => {
-                console.error("เกิดข้อผิดพลาดในการส่งข้อมูลไปยัง ESP32:", error);
+                console.error("เกิดข้อผิดพลาดในการเชื่อมต่อ Blynk:", error);
             });
     }
 </script>
