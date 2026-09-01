@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 AI Voice Controller</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+
+    <style>
+        * { box-sizing: border-box; font-family: 'Prompt', sans-serif; }
+        body { background: #0f172a; color: #f8fafc; text-align: center; padding: 20px; margin: 0; }
+        h2 { font-weight: 600; margin-bottom: 5px; }
+        p, .status-box { font-weight: 300; }
+        .card { background: #1e293b; max-width: 400px; margin: 20px auto; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        
+        /* สไตล์ช่องกรอก IP Address สำหรับ Vercel */
+        .ip-config { margin-bottom: 15px; text-align: left; }
+        .ip-config label { font-size: 12px; color: #94a3b8; display: block; margin-bottom: 4px; }
+        .ip-input-group { display: flex; gap: 8px; }
+        .ip-input-group input { flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #f8fafc; font-size: 14px; outline: none; }
+        .ip-input-group button { padding: 8px 15px; border-radius: 8px; border: none; background: #3b82f6; color: white; cursor: pointer; font-size: 14px; }
+
+        /* สไตล์ปุ่มไมค์และไอคอน SVG */
+        .btn-mic { 
+            width: 100px; 
+            height: 100px; 
+            border-radius: 50%; 
+            border: none; 
+            background: #3b82f6; 
+            color: white; 
+            cursor: pointer; 
+            transition: 0.3s; 
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); 
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        .btn-mic svg { width: 45px; height: 45px; fill: currentColor; }
+        .btn-mic.listening { 
+            background: #ef4444; 
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.7);
+            animation: pulse 1.5s infinite; 
+        }
+
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        
+        .status-box { margin-top: 20px; padding: 15px; background: #0f172a; border-radius: 10px; font-size: 16px; min-height: 50px; }
+        .state-indicator { margin-top: 15px; font-weight: 600; font-size: 18px; }
+        .on { color: #22c55e; }
+        .off { color: #ef4444; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <!-- ช่องตั้งค่า IP ของ ESP32 เมื่อรันผ่าน Vercel -->
+    <div class="ip-config">
+        <label for="espIp">IP Address ของ ESP32 ในบ้าน:</label>
+        <div class="ip-input-group">
+            <input type="text" id="espIp" placeholder="เช่น 192.168.1.50">
+            <button onclick="saveIP()">บันทึก</button>
+        </div>
+    </div>
+
+    <h2>AI Voice Control</h2>
+    <p>กดปุ่มแล้วพูดคำสั่ง (เช่น "เปิดไฟหน่อย", "ปิดไฟ")</p>
+
+    <button id="micBtn" class="btn-mic" onclick="toggleListening()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        </svg>
+    </button>
+
+    <div class="status-box" id="transcriptText">กดปุ่มไมค์เพื่อเริ่มพูด...</div>
+
+    <div class="state-indicator">
+        สถานะระบบ: <span id="deviceStatus" class="off">OFF</span>
+    </div>
+</div>
+
+<script>
+    const micBtn = document.getElementById('micBtn');
+    const transcriptText = document.getElementById('transcriptText');
+    const deviceStatus = document.getElementById('deviceStatus');
+    const espIpInput = document.getElementById('espIp');
+
+    // โหลด IP ที่เคยบันทึกไว้ใน LocalStorage
+    document.addEventListener("DOMContentLoaded", () => {
+        const savedIp = localStorage.getItem('esp32_ip');
+        if (savedIp) {
+            espIpInput.value = savedIp;
+        }
+    });
+
+    function saveIP() {
+        const ip = espIpInput.value.trim();
+        if (ip) {
+            localStorage.setItem('esp32_ip', ip);
+            alert("บันทึก IP Address เรียบร้อยแล้ว!");
+        } else {
+            alert("กรุณากรอก IP Address ของ ESP32");
+        }
+    }
+
+    let recognition;
+    let isListening = false;
+
+    // เช็กการรองรับ Web Speech API ของเบราว์เซอร์
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.lang = 'th-TH'; // กำหนดเป็นภาษาไทย
+        recognition.continuous = false;
+        recognition.interimResults = false;
+
+        recognition.onstart = () => {
+            isListening = true;
+            micBtn.classList.add('listening');
+            transcriptText.innerText = "กำลังฟังเสียงของคุณ...";
+        };
+
+        recognition.onresult = (event) => {
+            const commandText = event.results[0][0].transcript;
+            // แก้ไข Syntax Error: เติม Backtick (`)
+            transcriptText.innerText = `คุณพูดว่า: "${commandText}"`;
+            
+            // ส่งคำสั่งไปประมวลผล AI Logic
+            processVoiceCommand(commandText);
+        };
+
+        recognition.onerror = (event) => {
+            transcriptText.innerText = "เกิดข้อผิดพลาดในการรับเสียง: " + event.error;
+            stopListening();
+        };
+
+        recognition.onend = () => {
+            stopListening();
+        };
+    } else {
+        transcriptText.innerText = "เบราว์เซอร์นี้ไม่รองรับระบบสั่งงานด้วยเสียง";
+    }
+
+    function toggleListening() {
+        if (!recognition) return;
+        if (isListening) {
+            recognition.stop();
+        } else {
+            recognition.start();
+        }
+    }
+
+    function stopListening() {
+        isListening = false;
+        micBtn.classList.remove('listening');
+    }
+
+    // =======================================================
+    // 🧠 ระบบประมวลผลคำสั่งภาษาไทย (AI / Intent Keyword Parser)
+    // =======================================================
+    function processVoiceCommand(text) {
+        const lowerText = text.toLowerCase();
+
+        const turnOnKeywords = ["เปิด", "เปิดไฟ", "สว่าง", "ติดไฟ", "on"];
+        const turnOffKeywords = ["ปิด", "ปิดไฟ", "มืด", "ดับไฟ", "off"];
+
+        let action = null;
+
+        if (turnOnKeywords.some(keyword => lowerText.includes(keyword))) {
+            action = "ON";
+        } else if (turnOffKeywords.some(keyword => lowerText.includes(keyword))) {
+            action = "OFF";
+        }
+
+        if (action === "ON") {
+            deviceStatus.innerText = "ON";
+            deviceStatus.className = "on";
+            sendDataToESP32("ON");
+        } else if (action === "OFF") {
+            deviceStatus.innerText = "OFF";
+            deviceStatus.className = "off";
+            sendDataToESP32("OFF");
+        } else {
+            transcriptText.innerText += " (ไม่เข้าใจคำสั่ง กรุณาลองใหม่)";
+        }
+    }
+
+    // =======================================================
+    // 🔗 [จุดเชื่อมต่อกับระบบ ESP32 ผ่าน Vercel]
+    // =======================================================
+    function sendDataToESP32(cmd) {
+        const ip = localStorage.getItem('esp32_ip') || espIpInput.value.trim();
+        
+        // ถ้าไม่ได้กรอก IP ให้ยิง Path ตรงกรณีรันบนบอร์ดโดยตรง
+        const targetUrl = ip ? `http://${ip}/control?relay=${cmd}` : `/control?relay=${cmd}`;
+
+        // ยิง HTTP GET Request ไปยัง ESP32
+        fetch(targetUrl, { mode: 'no-cors' })
+            .then(() => {
+                // แก้ไข Syntax Error: เติม Backtick (`)
+                console.log(`ส่งคำสั่ง ${cmd} ไปยัง ESP32 สำเร็จ`);
+            })
+            .catch(error => {
+                console.error("เกิดข้อผิดพลาดในการส่งข้อมูลไปยัง ESP32:", error);
+            });
+    }
+</script>
+
+</body>
+</html>
