@@ -111,13 +111,13 @@
     function processVoiceCommand(text) {
         const lowerText = text.toLowerCase();
         
-        // คีย์เวิร์ดคำสั่งต่างๆ
+        const autoKeywords    = ["ออโต้", "อัตโนมัติ", "auto", "เซนเซอร์", "เซ็นเซอร์"];
         const turnOnKeywords  = ["เปิดไฟ", "เปิด", "สว่าง", "ติดไฟ", "on"];
         const turnOffKeywords = ["ปิดไฟ", "ปิด", "มืด", "ดับไฟ", "off"];
-        const autoKeywords    = ["ออโต้", "อัตโนมัติ", " auto", "เซนเซอร์", "เซ็นเซอร์"];
 
         let action = null;
 
+        // เช็กคำว่า Auto ก่อนเป็นลำดับแรกสุดเสมอ
         if (autoKeywords.some(keyword => lowerText.includes(keyword))) {
             action = "AUTO";
         } else if (turnOnKeywords.some(keyword => lowerText.includes(keyword))) {
@@ -126,28 +126,27 @@
             action = "OFF";
         }
 
-        if (action === "ON") {
+        if (action === "AUTO") {
+            deviceStatus.innerText = "AUTO MODE";
+            deviceStatus.className = "auto";
+            sendDataToBlynk("v1", 0); // คืนการควบคุมให้เซนเซอร์ LDR+PIR
+            speakText("เปลี่ยนเป็นโหมดอัตโนมัติแล้วครับ");
+        } else if (action === "ON") {
             deviceStatus.innerText = "ON (MANUAL)";
             deviceStatus.className = "on";
-            sendDataToBlynk("v0", 1); // สั่งเปิดไฟ (V0=1)
+            sendDataToBlynk("v0", 1); // สั่งเปิดไฟแบบ Manual
             speakText("เปิดไฟแล้วครับ");
         } else if (action === "OFF") {
             deviceStatus.innerText = "OFF (MANUAL)";
             deviceStatus.className = "off";
-            sendDataToBlynk("v0", 0); // สั่งปิดไฟ (V0=0)
+            sendDataToBlynk("v0", 0); // สั่งปิดไฟแบบ Manual
             speakText("ปิดไฟแล้วครับ");
-        } else if (action === "AUTO") {
-            deviceStatus.innerText = "AUTO MODE";
-            deviceStatus.className = "auto";
-            sendDataToBlynk("v1", 0); // ยกเลิก Manual กลับไปใช้เซนเซอร์ (V1=0)
-            speakText("เปลี่ยนเป็นโหมดอัตโนมัติแล้วครับ");
         } else {
             transcriptText.innerText += " (ไม่เข้าใจคำสั่ง กรุณาลองใหม่)";
             speakText("ไม่เข้าใจคำสั่งครับ กรุณาลองใหม่อีกครั้ง");
         }
     }
 
-    // ปรับฟังก์ชันส่งข้อมูล ให้รับค่า Pin ได้ยืดหยุ่น (ทั้ง v0 และ v1)
     function sendDataToBlynk(pin, value) {
         const url = `https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&${pin}=${value}`;
 
