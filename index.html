@@ -4,48 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ESP32 AI Voice Controller</title>
-
-    <!-- ดึงฟอนต์ Prompt จาก Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
-
     <style>
         * { box-sizing: border-box; font-family: 'Prompt', sans-serif; }
         body { background: #0f172a; color: #f8fafc; text-align: center; padding: 20px; margin: 0; }
         h2 { font-weight: 600; margin-bottom: 5px; }
         p, .status-box { font-weight: 300; }
         .card { background: #1e293b; max-width: 400px; margin: 30px auto; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-        
-        /* สไตล์ปุ่มไมค์และไอคอน SVG */
         .btn-mic { 
-            width: 100px; 
-            height: 100px; 
-            border-radius: 50%; 
-            border: none; 
-            background: #3b82f6; 
-            color: white; 
-            cursor: pointer; 
-            transition: 0.3s; 
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); 
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin-top: 15px;
+            width: 100px; height: 100px; border-radius: 50%; border: none; 
+            background: #3b82f6; color: white; cursor: pointer; transition: 0.3s; 
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); display: inline-flex; 
+            align-items: center; justify-content: center; margin-top: 15px; 
         }
-        .btn-mic svg {
-            width: 45px;
-            height: 45px;
-            fill: currentColor;
-        }
-        .btn-mic.listening { 
-            background: #ef4444; 
-            box-shadow: 0 0 20px rgba(239, 68, 68, 0.7);
-            animation: pulse 1.5s infinite; 
-        }
-
+        .btn-mic svg { width: 45px; height: 45px; fill: currentColor; }
+        .btn-mic.listening { background: #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.7); animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        
         .status-box { margin-top: 20px; padding: 15px; background: #0f172a; border-radius: 10px; font-size: 16px; min-height: 50px; }
         .state-indicator { margin-top: 15px; font-weight: 600; font-size: 18px; }
         .on { color: #22c55e; }
@@ -77,18 +53,17 @@
     const transcriptText = document.getElementById('transcriptText');
     const deviceStatus = document.getElementById('deviceStatus');
 
-    // Blynk Auth Token ของระบบ
+    // Blynk Token และ Virtual Pin V0 ตรงตามโค้ด ESP32 หลัก
     const BLYNK_TOKEN = "9ksShhZRwGtCGBPw-R0ioSRWy3cwE-L7";
-    const VIRTUAL_PIN = "v1"; // กำหนดให้ควบคุมผ่าน Virtual Pin V1
+    const VIRTUAL_PIN = "v0"; 
 
     let recognition;
     let isListening = false;
 
-    // เช็กการรองรับ Web Speech API ของเบราว์เซอร์
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRecognition();
-        recognition.lang = 'th-TH'; // กำหนดเป็นภาษาไทย
+        recognition.lang = 'th-TH';
         recognition.continuous = false;
         recognition.interimResults = false;
 
@@ -101,8 +76,6 @@
         recognition.onresult = (event) => {
             const commandText = event.results[0][0].transcript;
             transcriptText.innerText = `คุณพูดว่า: "${commandText}"`;
-            
-            // ส่งคำสั่งไปประมวลผล AI Logic
             processVoiceCommand(commandText);
         };
 
@@ -111,20 +84,14 @@
             stopListening();
         };
 
-        recognition.onend = () => {
-            stopListening();
-        };
+        recognition.onend = () => { stopListening(); };
     } else {
         transcriptText.innerText = "เบราว์เซอร์นี้ไม่รองรับระบบสั่งงานด้วยเสียง";
     }
 
     function toggleListening() {
         if (!recognition) return;
-        if (isListening) {
-            recognition.stop();
-        } else {
-            recognition.start();
-        }
+        if (isListening) { recognition.stop(); } else { recognition.start(); }
     }
 
     function stopListening() {
@@ -132,15 +99,9 @@
         micBtn.classList.remove('listening');
     }
 
-    // =======================================================
-    // 🧠 ระบบประมวลผลคำสั่งภาษาไทย (AI / Intent Keyword Parser)
-    // =======================================================
     function processVoiceCommand(text) {
         const lowerText = text.toLowerCase();
-
-        // คำคีย์เวิร์ดสำหรับสั่ง "เปิด"
         const turnOnKeywords = ["เปิด", "เปิดไฟ", "สว่าง", "ติดไฟ", "on"];
-        // คำคีย์เวิร์ดสำหรับสั่ง "ปิด"
         const turnOffKeywords = ["ปิด", "ปิดไฟ", "มืด", "ดับไฟ", "off"];
 
         let action = null;
@@ -154,33 +115,26 @@
         if (action === "ON") {
             deviceStatus.innerText = "ON";
             deviceStatus.className = "on";
-            sendDataToBlynk(1); // ส่งค่า 1 ไปเปิดไฟ
+            sendDataToBlynk(1); // ส่ง 1 ไปที่ V0
         } else if (action === "OFF") {
             deviceStatus.innerText = "OFF";
             deviceStatus.className = "off";
-            sendDataToBlynk(0); // ส่งค่า 0 ไปปิดไฟ
+            sendDataToBlynk(0); // ส่ง 0 ไปที่ V0
         } else {
             transcriptText.innerText += " (ไม่เข้าใจคำสั่ง กรุณาลองใหม่)";
         }
     }
 
-    // =======================================================
-    // 🔗 [จุดเชื่อมต่อยิงคำสั่งไป Blynk Cloud API]
-    // =======================================================
     function sendDataToBlynk(value) {
         const url = `https://blynk.cloud/external/api/update?token=${BLYNK_TOKEN}&${VIRTUAL_PIN}=${value}`;
 
         fetch(url)
             .then(response => {
                 if (response.ok) {
-                    console.log(`ส่งคำสั่งค่า ${value} ไปยัง Blynk สำเร็จ`);
-                } else {
-                    console.error("การส่งคำสั่งไป Blynk ล้มเหลว");
+                    console.log(`ส่งคำสั่ง ${value} ไปยัง Blynk (V0) สำเร็จ`);
                 }
             })
-            .catch(error => {
-                console.error("เกิดข้อผิดพลาดในการเชื่อมต่อ Blynk:", error);
-            });
+            .catch(error => console.error("Error:", error));
     }
 </script>
 
