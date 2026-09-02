@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 AI Voice Controller</title>
+    <title>ESP32 AI Dual Voice Controller</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
@@ -32,7 +32,7 @@
 <body>
 
 <div class="card">
-    <h2>AI Voice Control</h2>
+    <h2>AI Dual Voice Control</h2>
     <p>พูดคำสั่ง (เช่น "เปิดไฟ", "ปิดไฟ", "เปิดโหมดออโต้")</p>
 
     <button id="micBtn" class="btn-mic" onclick="toggleListening()">
@@ -59,15 +59,21 @@
     let recognition;
     let isListening = false;
 
-    // แก้ไข: ใช้ SoundTTS HTTP Direct URL สำหรับส่งออกลำโพง ESP32 โดยตรง
-    function playAudioOnESP32(text) {
+    // --- ฟังก์ชันขยายเสียงออก 2 ทาง (เบราว์เซอร์มือถือ + ลำโพง ESP32) ---
+    function playDualVoice(text) {
+        // 1. เล่นเสียงออกทางเบราว์เซอร์มือถือ/คอมพิวเตอร์
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'th-TH';
+            utterance.rate = 1.0;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // 2. ส่ง URL ไฟล์เสียงไปยัง Blynk V5 เพื่อขับออกลำโพง MAX98357A บน ESP32
         const encodedText = encodeURIComponent(text);
         const ttsUrl = `http://soundoftext.com/static/sounds/th/${encodedText}.mp3`;
-        
-        // หากต้องการใช้ระบบแปลงข้อความเป็นเสียงที่เสถียรผ่าน HTTP สตรีมมิ่ง
-        const fallbackUrl = `http://translate.google.com/translate_tts?ie=UTF-8&tl=th&client=tw-ob&q=${encodedText}`;
-        
-        sendDataToBlynk("v5", fallbackUrl);
+        sendDataToBlynk("v5", ttsUrl);
     }
 
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -131,24 +137,24 @@
             deviceStatus.className = "auto";
             
             sendDataToBlynk("v1", 0);
-            playAudioOnESP32("เปิดโหมดออโต้แล้ว");
+            playDualVoice("เปิดโหมดออโต้แล้ว");
         } else if (action === "ON") {
             deviceStatus.innerText = "ON (MANUAL)";
             deviceStatus.className = "on";
             
             sendDataToBlynk("v1", 1);
             sendDataToBlynk("v0", 1);
-            playAudioOnESP32("เปิดไฟแล้ว");
+            playDualVoice("เปิดไฟแล้ว");
         } else if (action === "OFF") {
             deviceStatus.innerText = "OFF (MANUAL)";
             deviceStatus.className = "off";
             
             sendDataToBlynk("v1", 1);
             sendDataToBlynk("v0", 0);
-            playAudioOnESP32("ปิดไฟแล้ว");
+            playDualVoice("ปิดไฟแล้ว");
         } else {
             transcriptText.innerText += " (ไม่เข้าใจคำสั่ง กรุณาลองใหม่)";
-            playAudioOnESP32("ลองใหม่อีกครั้ง");
+            playDualVoice("ลองใหม่อีกครั้ง");
         }
     }
 
