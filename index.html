@@ -59,10 +59,10 @@
     let recognition;
     let isListening = false;
 
-    // ส่ง Google TTS URL ไปให้ลำโพง ESP32 เล่นอย่างเดียวผ่าน V5
+    // แก้ไข: ใช้บริการ TTS API Direct Link ที่รองรับ ESP32 โดยตรง
     function playAudioOnESP32(text) {
         const encodedText = encodeURIComponent(text);
-        const ttsUrl = `http://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=th&client=tw-ob`;
+        const ttsUrl = `https://api.voicerss.org/?key=e71df894a4ce4350917f226ec49b1093&hl=th-th&c=MP3&f=16khz_16bit_mono&src=${encodedText}`;
         sendDataToBlynk("v5", ttsUrl);
     }
 
@@ -126,27 +126,21 @@
             deviceStatus.innerText = "AUTO MODE";
             deviceStatus.className = "auto";
             
-            // สั่งยกเลิก Manual Override (V1 = 0) ให้ระบบกลับมาใช้ PIR + LDR
             sendDataToBlynk("v1", 0);
-            
             playAudioOnESP32("เปลี่ยนเป็นโหมดอัตโนมัติแล้วครับ");
         } else if (action === "ON") {
             deviceStatus.innerText = "ON (MANUAL)";
             deviceStatus.className = "on";
             
-            // เปิด Manual Override (V1 = 1) และสั่งเปิดไฟ (V0 = 1)
             sendDataToBlynk("v1", 1);
             sendDataToBlynk("v0", 1);
-            
             playAudioOnESP32("เปิดไฟแล้วครับ");
         } else if (action === "OFF") {
             deviceStatus.innerText = "OFF (MANUAL)";
             deviceStatus.className = "off";
             
-            // เปิด Manual Override (V1 = 1) และสั่งปิดไฟ (V0 = 0)
             sendDataToBlynk("v1", 1);
             sendDataToBlynk("v0", 0);
-            
             playAudioOnESP32("ปิดไฟแล้วครับ");
         } else {
             transcriptText.innerText += " (ไม่เข้าใจคำสั่ง กรุณาลองใหม่)";
