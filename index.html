@@ -59,17 +59,7 @@
     let recognition;
     let isListening = false;
 
-    function speakText(text) {
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'th-TH';
-            utterance.rate = 1.0;
-            window.speechSynthesis.speak(utterance);
-        }
-    }
-
-    // สร้าง Google TTS URL แล้วยิงเข้า Blynk V5 เพื่อส่งเสียงไปลำโพง ESP32
+    // ส่ง Google TTS URL ไปให้ลำโพง ESP32 เล่นอย่างเดียว
     function playAudioOnESP32(text) {
         const encodedText = encodeURIComponent(text);
         const ttsUrl = `http://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=th&client=tw-ob`;
@@ -136,28 +126,20 @@
             deviceStatus.innerText = "AUTO MODE";
             deviceStatus.className = "auto";
             sendDataToBlynk("v1", 0);
-            const responseText = "เปลี่ยนเป็นโหมดอัตโนมัติแล้วครับ";
-            speakText(responseText);
-            playAudioOnESP32(responseText);
+            playAudioOnESP32("เปลี่ยนเป็นโหมดอัตโนมัติแล้วครับ");
         } else if (action === "ON") {
             deviceStatus.innerText = "ON (MANUAL)";
             deviceStatus.className = "on";
             sendDataToBlynk("v0", 1);
-            const responseText = "เปิดไฟแล้วครับ";
-            speakText(responseText);
-            playAudioOnESP32(responseText);
+            playAudioOnESP32("เปิดไฟแล้วครับ");
         } else if (action === "OFF") {
             deviceStatus.innerText = "OFF (MANUAL)";
             deviceStatus.className = "off";
             sendDataToBlynk("v0", 0);
-            const responseText = "ปิดไฟแล้วครับ";
-            speakText(responseText);
-            playAudioOnESP32(responseText);
+            playAudioOnESP32("ปิดไฟแล้วครับ");
         } else {
             transcriptText.innerText += " (ไม่เข้าใจคำสั่ง กรุณาลองใหม่)";
-            const responseText = "ไม่เข้าใจคำสั่งครับ กรุณาลองใหม่อีกครั้ง";
-            speakText(responseText);
-            playAudioOnESP32(responseText);
+            playAudioOnESP32("ไม่เข้าใจคำสั่งครับ กรุณาลองใหม่อีกครั้ง");
         }
     }
 
