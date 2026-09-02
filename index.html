@@ -59,11 +59,15 @@
     let recognition;
     let isListening = false;
 
-    // แก้ไข: ใช้บริการ TTS API Direct Link ที่รองรับ ESP32 โดยตรง
+    // แก้ไข: ใช้ SoundTTS HTTP Direct URL สำหรับส่งออกลำโพง ESP32 โดยตรง
     function playAudioOnESP32(text) {
         const encodedText = encodeURIComponent(text);
-        const ttsUrl = `https://api.voicerss.org/?key=e71df894a4ce4350917f226ec49b1093&hl=th-th&c=MP3&f=16khz_16bit_mono&src=${encodedText}`;
-        sendDataToBlynk("v5", ttsUrl);
+        const ttsUrl = `http://soundoftext.com/static/sounds/th/${encodedText}.mp3`;
+        
+        // หากต้องการใช้ระบบแปลงข้อความเป็นเสียงที่เสถียรผ่าน HTTP สตรีมมิ่ง
+        const fallbackUrl = `http://translate.google.com/translate_tts?ie=UTF-8&tl=th&client=tw-ob&q=${encodedText}`;
+        
+        sendDataToBlynk("v5", fallbackUrl);
     }
 
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -127,24 +131,24 @@
             deviceStatus.className = "auto";
             
             sendDataToBlynk("v1", 0);
-            playAudioOnESP32("เปลี่ยนเป็นโหมดอัตโนมัติแล้วครับ");
+            playAudioOnESP32("เปิดโหมดออโต้แล้ว");
         } else if (action === "ON") {
             deviceStatus.innerText = "ON (MANUAL)";
             deviceStatus.className = "on";
             
             sendDataToBlynk("v1", 1);
             sendDataToBlynk("v0", 1);
-            playAudioOnESP32("เปิดไฟแล้วครับ");
+            playAudioOnESP32("เปิดไฟแล้ว");
         } else if (action === "OFF") {
             deviceStatus.innerText = "OFF (MANUAL)";
             deviceStatus.className = "off";
             
             sendDataToBlynk("v1", 1);
             sendDataToBlynk("v0", 0);
-            playAudioOnESP32("ปิดไฟแล้วครับ");
+            playAudioOnESP32("ปิดไฟแล้ว");
         } else {
             transcriptText.innerText += " (ไม่เข้าใจคำสั่ง กรุณาลองใหม่)";
-            playAudioOnESP32("ไม่เข้าใจคำสั่งครับ กรุณาลองใหม่อีกครั้ง");
+            playAudioOnESP32("ลองใหม่อีกครั้ง");
         }
     }
 
